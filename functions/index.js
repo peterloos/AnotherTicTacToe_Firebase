@@ -1,52 +1,77 @@
 'use strict';
 
+const GameStoneX = "X";
+const GameStoneO = "O";
+const GameStoneEmpty = "Empty";
+
 const functions = require('firebase-functions');
 
 exports.helloWorld = functions.https.onRequest((request, response) => {
 
- response.send("Hello from Firebase, it's Peter");
+    response.send("Hello from Firebase, it's Peter");
 
 });
 
+// ERSTE VARIANTE -- GEHT --- HALT MAL AUFHEBEN ....
 //exports.readTicTacToeBoard = functions.database.ref ('board').onWrite(
 //
-//  (event) => {
+//    (event) => {
 //
-//      const previousBoard = event.data.previous;
+//        const previousBoard = event.data.previous;
+//        var prevArray = boardToArray(previousBoard.val());
+//        console.log('readTicTacToeBoard', 'Result (1) ' + prevArray);
 //
-//      if (previousBoard.exists()) {
+//        const currentBoard = event.data.current.val();
+//        var currArray = boardToArray(currentBoard);
+//        console.log('readTicTacToeBoard', 'Result (2) ' + currArray);
 //
-//          console.log('readTicTacToeBoard', 'Yeahhhhh ... there is old data !!!!');
-//          dumpBoard2(previousBoard.val(), 'this is the OLD board !!!');
-//      }
+//        var lastMovedStone = searchLastMove (prevArray, currArray);
 //
-//      const currentBoard = event.data.current.val();
-//      dumpBoard2(currentBoard, '...  and this is the NEW board');
+//        if (lastMovedStone.row !== -1) {
 //
-//      return Promise.resolve();
-//  }
+//            console.log('readTicTacToeBoard', 'LAST STONE: row=' + lastMovedStone.row + ', col=' + lastMovedStone.col + ', stone=' + lastMovedStone.stone);
+//        }
+//        else {
+//
+//            console.log('readTicTacToeBoard', 'LAST STONE UNKNONW');
+//        }
+//
+//        return Promise.resolve(1);
+//    }
 //);
+
 
 exports.readTicTacToeBoard = functions.database.ref ('board').onWrite(
 
-  (event) => {
+    (event) => {
 
-    const previousBoard = event.data.previous;
+        const previousBoard = event.data.previous;
+        var prevArray = boardToArray(previousBoard.val());
+        console.log('readTicTacToeBoard', 'Result (1) ' + prevArray);
 
-    if (previousBoard.exists()) {
+        const currentBoard = event.data.current.val();
+        var currArray = boardToArray(currentBoard);
+        console.log('readTicTacToeBoard', 'Result (2) ' + currArray);
 
-      console.log('readTicTacToeBoard', 'Yeahhhhh ... there is old data !!!!');
-      var prevArray = boardToArray(previousBoard.val());
-      console.log('readTicTacToeBoard', 'Result (1) ' + prevArray);
+        var lastMovedStone = searchLastMove (prevArray, currArray);
+
+        var result = checkForEndOfGame(currArray, lastMovedStone.stone);
+
+        if (! result.isGameOver) {
+
+            console.log('readTicTacToeBoard', 'game is NOT over');
+            return event.data.ref.parent.child('state').child('test_status').set('game_not_over');
+
+        }
+        else {
+
+            console.log('readTicTacToeBoard', 'GAME IS OVER');
+            return event.data.ref.parent.child('state').child('test_status').set('game_is_OVER');
+
+        }
     }
-
-    const currentBoard = event.data.current.val();
-    var currArray = boardToArray(currentBoard);
-    console.log('readTicTacToeBoard', 'Result (2) ' + currArray);
-
-    return Promise.resolve();
-  }
 );
+
 
 // just another function
 function doSomething() {
@@ -103,22 +128,92 @@ function boardToArray(board) {
     const elem32 = board.row3.col2.state;
     const elem33 = board.row3.col3.state;
 
-//    console.log('readTicTacToeBoard', 'elem11 ' + elem11);
-//    console.log('readTicTacToeBoard', 'elem12 ' + elem12);
-//    console.log('readTicTacToeBoard', 'elem13 ' + elem13);
-//
-//    console.log('readTicTacToeBoard', 'elem21 ' + elem21);
-//    console.log('readTicTacToeBoard', 'elem21 ' + elem22);
-//    console.log('readTicTacToeBoard', 'elem21 ' + elem23);
-//
-//    console.log('readTicTacToeBoard', 'elem31 ' + elem31);
-//    console.log('readTicTacToeBoard', 'elem31 ' + elem32);
-//    console.log('readTicTacToeBoard', 'elem31 ' + elem33);
-
-    var boardAsArray = [ [elem11, elem12, elem13], [elem21, elem22, elem23], [elem31, elem32, elem33]  ];
+    var boardAsArray = [ [elem11, elem12, elem13], [elem21, elem22, elem23], [elem31, elem32, elem33] ];
 
     return boardAsArray;
 }
+
+function searchLastMove(prevBoard, currBoard) {
+
+    var lastStone = new Object();
+    lastStone.row = -1;
+    lastStone.col = -1;
+    lastStone.stone = GameStoneEmpty;
+
+    for (var row = 0; row < 3; row ++) {
+
+        for (var col = 0; col < 3; col ++) {
+
+            console.log('readTicTacToeBoard', 'reading arrays at row=' + row + ', and at col=' + col);
+
+            if (prevBoard[row][col] !== currBoard[row][col]) {
+
+                lastStone.row = row;
+                lastStone.col = col;
+                lastStone.stone = currBoard[row][col];
+                return lastStone;
+            }
+        }
+    }
+
+    return lastStone;
+}
+
+function checkForEndOfGame(board, stone) {
+
+    var result = new Object();
+    result.isGameOver = false;
+    result.isADraw = false;
+
+    // test columns
+    for (var row = 0; row < 3; row++) {
+        if (board[row][0] === stone && board[row][1] === stone && board[row][2] === stone) {
+            result.isGameOver = true;
+            return result;
+        }
+    }
+
+    // test rows
+    for (var col = 0; col < 3; col++) {
+        if (board[0][col] === stone && board[1][col] === stone && board[2][col] === stone) {
+            result.isGameOver = true;
+            return result;
+        }
+    }
+
+    // test diagonals
+    if (board[0][0] === stone && board[1][1] === stone && board[2][2] === stone) {
+        result.isGameOver = true;
+        return result;
+    }
+
+    if (board[2][0] === stone && board[1][1] === stone && board[0][2] === stone) {
+        result.isGameOver = true;
+        return result;
+    }
+
+    // could be a draw
+    var emptyStones = 0;
+    for (row = 0; row < 3; row++) {
+        for (col = 0; col < 3; col++) {
+            if (board[row][col] === GameStoneEmpty) {
+                emptyStones++;
+                break;
+            }
+        }
+    }
+    if (emptyStones === 0) {
+
+        result.isGameOver = true;
+        result.isADraw = true;
+        return result;
+    }
+
+    return result;
+}
+
+
+// ================================================================================================
 
 
 //function dumpBoard(board) {
