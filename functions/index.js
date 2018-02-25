@@ -34,11 +34,8 @@ const GameIdle = "GameIdle";
 const GameRoom1Player = "GameRoom1Player";
 const GameRoom2Players = "GameRoom2Players";
 const GameActivePlayer = "GameActivePlayer";
-// const GameActive1stPlayer = "GameActive1stPlayer";
-// const GameActive2ndPlayer = "GameActive2ndPlayer";
+const GameOver = "GameOver";
 
-const GameOver1stPlayerWon = "GameOver1stPlayerWon";
-const GameOver2ndPlayerWon = "GameOver2ndPlayerWon";
 
 // game commands
 const GameCommandClear = "clear";
@@ -258,20 +255,59 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
             console.log('readTicTacToeBoard', 'game is NOT over');
 
-            // return event.data.ref.parent.child('state').child('test_status').set('game_not_over');
-            return Promise.resolve(1);
+            // need list of players to change state of game accordingly
+            return admin.database().ref('/players').once('value').then ((snapshot) => {
 
+                var arrPlayers = snapshotToArray (snapshot);
+                var keyOfNextPlayer;
+                var stoneOfNextPlayer;
+
+                if (arrPlayers[0].stone === lastMovedStone.stone) {
+
+                    keyOfNextPlayer = arrPlayers[1].key;
+                    stoneOfNextPlayer = arrPlayers[1].stone;
+                }
+                else if (arrPlayers[1].stone === lastMovedStone.stone) {
+
+                    keyOfNextPlayer = arrPlayers[0].key;
+                    stoneOfNextPlayer = arrPlayers[0].stone;
+                }
+
+                return event.data.ref.parent.child('control').child('status').set(
+                    {id : GameActivePlayer,
+                     parameter1 : keyOfNextPlayer,
+                     parameter2 : stoneOfNextPlayer}
+                );
+            });
         }
         else {
 
             console.log('readTicTacToeBoard', 'GAME IS OVER');
 
-            // return event.data.ref.parent.child('state').child('test_status').set('game_is_OVER');
-            return Promise.resolve(1);
+            // need list of players to retrieve the state of the player, who has won the game
+            return admin.database().ref('/players').once('value').then ((snapshot) => {
+
+                var arrPlayers = snapshotToArray (snapshot);
+                var keyOfWinner;
+
+                if (arrPlayers[0].stone === lastMovedStone.stone) {
+
+                    keyOfWinner = arrPlayers[0].key;
+                }
+                else if (arrPlayers[1].stone === lastMovedStone.stone) {
+
+                    keyOfWinner = arrPlayers[1].key;
+                }
+
+                return event.data.ref.parent.child('control').child('status').set(
+                    {id : GameOver,
+                     parameter1 : keyOfWinner,
+                     parameter2 : ""}
+                );
+            });
         }
     }
 );
-
 
 /*
  *   helper functions
