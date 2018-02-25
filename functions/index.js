@@ -1,77 +1,281 @@
 'use strict';
 
+// firebase utils
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+admin.initializeApp (functions.config().firebase);
+
+// game board stones
 const GameStoneX = "X";
 const GameStoneO = "O";
 const GameStoneEmpty = "Empty";
 
-const functions = require('firebase-functions');
+// empty board - needed for initialization
+const EmtpyBoard = {
+    row1 : {
+        col1: { state : "Empty" },
+        col2: { state : "Empty" },
+        col3: { state : "Empty" }
+    },
+    row2 : {
+        col1: { state : "Empty" },
+        col2: { state : "Empty" },
+        col3: { state : "Empty" }
+    },
+    row3 : {
+        col1: { state : "Empty" },
+        col2: { state : "Empty" },
+        col3: { state : "Empty" }
+    }
+};
 
-exports.helloWorld = functions.https.onRequest((request, response) => {
+// game state within cloud functions
+const GameIdle = "GameIdle";
+const GameRoom1Player = "GameRoom1Player";
+const GameRoom2Players = "GameRoom2Players";
+const GameActivePlayer = "GameActivePlayer";
+// const GameActive1stPlayer = "GameActive1stPlayer";
+// const GameActive2ndPlayer = "GameActive2ndPlayer";
 
-    response.send("Hello from Firebase, it's Peter");
+const GameOver1stPlayerWon = "GameOver1stPlayerWon";
+const GameOver2ndPlayerWon = "GameOver2ndPlayerWon";
 
-});
+// game commands
+const GameCommandClear = "clear";
+const GameCommandStart = "start";
 
-// ERSTE VARIANTE -- GEHT --- HALT MAL AUFHEBEN ....
-//exports.readTicTacToeBoard = functions.database.ref ('board').onWrite(
-//
-//    (event) => {
-//
-//        const previousBoard = event.data.previous;
-//        var prevArray = boardToArray(previousBoard.val());
-//        console.log('readTicTacToeBoard', 'Result (1) ' + prevArray);
-//
-//        const currentBoard = event.data.current.val();
-//        var currArray = boardToArray(currentBoard);
-//        console.log('readTicTacToeBoard', 'Result (2) ' + currArray);
-//
-//        var lastMovedStone = searchLastMove (prevArray, currArray);
-//
-//        if (lastMovedStone.row !== -1) {
-//
-//            console.log('readTicTacToeBoard', 'LAST STONE: row=' + lastMovedStone.row + ', col=' + lastMovedStone.col + ', stone=' + lastMovedStone.stone);
-//        }
-//        else {
-//
-//            console.log('readTicTacToeBoard', 'LAST STONE UNKNONW');
-//        }
-//
-//        return Promise.resolve(1);
-//    }
-//);
+// trigger functions
+exports.triggerPlayers = functions.database.ref ('/players').onWrite (
+
+    (event) => {
+
+        if (!event.data.exists()) {
+
+            console.log(' da muss es einen delete gegeben haben');
+            // TODO: Da muss der State wieder auf Room1Player oder Idle gesetzt werden
+            return null;
+        }
+
+        var arrPlayers = snapshotToArray (event.data);
+        console.log('snapshotToArray ------->  ' , arrPlayers.length);
+
+        // TODO
+        // Das ist recht uncool
+        // ist die property stone in dem Objekt 'Unknown', dann sind wir im Hochlauf
+
+        // ist die property stone in dem Objekt 'X' oder 'O', dann sind wir im Spielbetrieb ... und es dard KEINE Zustand gesetzt werden
+
+        var isInitialization = true;
+        if (arrPlayers[0].stone === "X" || arrPlayers[0].stone === "O" ) {
+            isInitialization = false;
+        }
+
+        if (isInitialization === true) {
+
+            console.log(' BIN HIER HIER (aa) ' + arrPlayers[0].stone);
+
+            var name, key;
+            if (arrPlayers.length === 1) {
+
+                name = arrPlayers[0].name;
+                key = arrPlayers[0].key;
+
+                return event.data.ref.parent.child('control').child('status').set({ id : GameRoom1Player, parameter1 : key, parameter2 : name });
+            }
+            else if (arrPlayers.length === 2) {
+
+                name = arrPlayers[1].name;
+                key = arrPlayers[1].key;
+
+                return event.data.ref.parent.child('control').child('status').set({ id : GameRoom2Players, parameter1 : key, parameter2 : name });
+            }
+            else {
+
+                console.log('INTERNAL ERROR: More than 3 members within game room');
+                return null;
+            }
+
+        }
+        else {
+
+            console.log(' BIN HIER HIER (bb) ' + arrPlayers[0].stone);
+
+            console.log('triggerPlayers', 'ignore this call --- just added some more informations into players objects (real time data base)');
+            return null;
+        }
+    }
+);
+
+function snapshotToArray(snapshot) {
+
+    let arrPlayers = [];
+
+    snapshot.forEach (childSnapshot => {
+
+        var item = childSnapshot.val();
+        var key = childSnapshot.key;
+
+        var player = new Object();
+        player.timestamp = item.creationDate;
+        player.name = item.name;
+        player.key = key;
+        player.stone = item.stone;
+        arrPlayers.push(player);
+    });
+
+    return arrPlayers;
+}
 
 
-exports.readTicTacToeBoard = functions.database.ref ('board').onWrite(
+exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
+
+    (event) => {
+
+        if (!event.data.exists()) {
+            return null;
+        }
+
+        const command = event.data.val();
+
+        console.log('triggerCommand', '=======> [' + command + ']');
+
+        if (command === "") {
+
+            console.log('triggerCommand', ' --> command has been clear by the cloud server');
+            return null;
+        }
+
+        else if (command === GameCommandStart) {
+
+            return admin.database().ref('/players').once('value').then ((snapshot) => {
+
+                var arrPlayers = snapshotToArray (snapshot);
+                if (arrPlayers.length !== 2) {
+
+                    console.log('triggerCommand', 'Array hat a unexpected length ' + arrPlayers.length);
+                    return null;
+                }
+
+                // decide, which player begins - comparing time stamps
+                var index = 0;
+                if (arrPlayers[1].timestamp <= arrPlayers[0].timestamp) {
+                    index = 1;
+                }
+
+                if (index === 0) {
+
+                    // players at position zero starts playing (using 'X')
+                    console.log('triggerCommand', 'XXX (a)');
+                    return event.data.ref.parent.parent.child('players').child(arrPlayers[0].key).child('stone').set('X').then (
+                        () => {
+
+                            // second player uses a 'O'
+                            console.log('triggerCommand', 'XXX (b)');
+                            return event.data.ref.parent.parent.child('players').child(arrPlayers[1].key).child('stone').set('O').then (
+                                () => {
+
+                                    // kick-off begin of game
+                                    console.log('triggerCommand', 'XXX (c)');
+                                    return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActivePlayer, parameter1 : arrPlayers[0].key, parameter2 : 'X'});
+                                }
+                            );
+                        }
+                    );
+                }
+                else if (index === 1) {
+
+                    // players at position one starts playing (using 'X')
+                    console.log('triggerCommand', 'YYY (a)');
+                    return event.data.ref.parent.parent.child('players').child(arrPlayers[1].key).child('stone').set('X').then (
+                        () => {
+
+                            // second player uses a 'O'
+                            console.log('triggerCommand', 'YYY (b)');
+                            return event.data.ref.parent.parent.child('players').child(arrPlayers[0].key).child('stone').set('O').then (
+                                () => {
+
+                                    // kick-off begin of game
+                                    console.log('triggerCommand', 'YYY (c)');
+                                    return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActivePlayer, parameter1 : arrPlayers[1].key, parameter2 : 'X'});
+                                }
+                            );
+                        }
+                    );
+                }
+                else
+                    return null;
+
+            }).catch ((reason) => {
+
+                console.log('triggerCommand', 'Dont  know what to do ??????????????????? ');
+            });
+
+        }
+
+        else if (command === GameCommandClear) {
+
+            // console.log('triggerCommand', 'board should be cleared now ............................' );
+            // return event.data.ref.parent.parent.child('board').set(EmtpyBoard);
+
+            console.log('triggerCommand', 'in command clear (1a)' );
+
+            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then ( () => {
+
+                console.log('triggerCommand', 'in command clear (1b)');
+                return event.data.ref.set ("");
+            });
+        }
+        else {
+
+            console.log('triggerCommand', 'Found an REALLY unknown command ---------> ' + command );
+            return null;
+        }
+    }
+);
+
+exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
     (event) => {
 
         const previousBoard = event.data.previous;
         var prevArray = boardToArray(previousBoard.val());
-        console.log('readTicTacToeBoard', 'Result (1) ' + prevArray);
 
         const currentBoard = event.data.current.val();
         var currArray = boardToArray(currentBoard);
-        console.log('readTicTacToeBoard', 'Result (2) ' + currArray);
 
         var lastMovedStone = searchLastMove (prevArray, currArray);
 
-        var result = checkForEndOfGame(currArray, lastMovedStone.stone);
+        if (lastMovedStone === GameStoneEmpty) {
 
+            console.log('readTicTacToeBoard', 'ignorig EMPTY stone ...');
+            return Promise.resolve(1);
+        }
+
+        // set stone
+
+        var result = checkForEndOfGame(currArray, lastMovedStone.stone);
         if (! result.isGameOver) {
 
             console.log('readTicTacToeBoard', 'game is NOT over');
-            return event.data.ref.parent.child('state').child('test_status').set('game_not_over');
+
+            // return event.data.ref.parent.child('state').child('test_status').set('game_not_over');
+            return Promise.resolve(1);
 
         }
         else {
 
             console.log('readTicTacToeBoard', 'GAME IS OVER');
-            return event.data.ref.parent.child('state').child('test_status').set('game_is_OVER');
 
+            // return event.data.ref.parent.child('state').child('test_status').set('game_is_OVER');
+            return Promise.resolve(1);
         }
     }
 );
 
+
+/*
+ *   helper functions
+ */
 
 // just another function
 function doSomething() {
