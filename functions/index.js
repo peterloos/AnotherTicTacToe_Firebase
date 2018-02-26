@@ -95,8 +95,6 @@ exports.triggerPlayers = functions.database.ref ('/players').onWrite (
         }
         else {
 
-            console.log(' BIN HIER HIER (bb) ' + arrPlayers[0].stone);
-
             console.log('triggerPlayers', 'ignore this call --- just added some more informations into players objects (real time data base)');
             return null;
         }
@@ -117,90 +115,12 @@ function snapshotToArray(snapshot) {
         player.name = item.name;
         player.key = key;
         player.stone = item.stone;
+        player.score = item.score;
         arrPlayers.push(player);
     });
 
     return arrPlayers;
 }
-
-//exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
-//
-//    (event) => {
-//
-//        if (!event.data.exists()) {
-//            return null;
-//        }
-//
-//        const command = event.data.val();
-//
-//        console.log('triggerCommand', '=======> [' + command + ']');
-//
-//        if (command === "") {
-//
-//            console.log('triggerCommand', ' --> command has been clear by the cloud server');
-//            return null;
-//        }
-//
-//        else if (command === GameCommandStart) {
-//
-//            return admin.database().ref('/players').once('value').then ((snapshot) => {
-//
-//                var arrPlayers = snapshotToArray (snapshot);
-//                if (arrPlayers.length !== 2) {
-//
-//                    console.log('triggerCommand', 'Array hat a unexpected length ' + arrPlayers.length);
-//                    return null;
-//                }
-//
-//                // decide, which player begins - comparing time stamps
-//                var index = 0;
-//                if (arrPlayers[1].timestamp <= arrPlayers[0].timestamp) {
-//                    index = 1;
-//                }
-//
-//                if (index === 0) {
-//
-//                    // kick-off begin of game
-//                    console.log('triggerCommand', 'kick-off player ZERO');
-//                    return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActivePlayer, parameter1 : arrPlayers[0].key, parameter2 : ''});
-//                }
-//                else if (index === 1) {
-//
-//                    // kick-off begin of game
-//                    console.log('triggerCommand', 'kick-off player ONE');
-//                    return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActivePlayer, parameter1 : arrPlayers[1].key, parameter2 : ''});
-//                }
-//                else
-//                    return null;
-//
-//            }).catch ((reason) => {
-//
-//                console.log('triggerCommand', 'Dont  know what to do ??????????????????? ');
-//            });
-//
-//        }
-//
-//        else if (command === GameCommandClear) {
-//
-//            // console.log('triggerCommand', 'board should be cleared now ............................' );
-//            // return event.data.ref.parent.parent.child('board').set(EmtpyBoard);
-//
-//            console.log('triggerCommand', 'in command clear (1a)' );
-//
-//            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then ( () => {
-//
-//                console.log('triggerCommand', 'in command clear (1b)');
-//                return event.data.ref.set ("");
-//            });
-//        }
-//        else {
-//
-//            console.log('triggerCommand', 'Found an REALLY unknown command ---------> ' + command );
-//            return null;
-//        }
-//    }
-//);
-
 
 exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
@@ -459,8 +379,6 @@ function searchLastMove(prevBoard, currBoard) {
     for (var row = 0; row < 3; row ++) {
 
         for (var col = 0; col < 3; col ++) {
-
-            console.log('readTicTacToeBoard', 'reading arrays at row=' + row + ', and at col=' + col);
 
             if (prevBoard[row][col] !== currBoard[row][col]) {
 
