@@ -280,30 +280,36 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
             console.log('readTicTacToeBoard', 'GAME IS OVER');
 
-            // need list of players to retrieve the state of the player, who has won the game
-            return admin.database().ref('/players').once('value').then ((snapshot) => {
+            return admin.database().ref('/players').once('value').then (
 
-                var arrPlayers = snapshotToArray (snapshot);
-                var keyOfWinner;
+                (snapshot) => {
 
-                if (arrPlayers[0].stone === lastMovedStone.stone) {
+                    var arrPlayers = snapshotToArray (snapshot);
+                    var indexOfWinner = (arrPlayers[0].stone === lastMovedStone.stone) ? 0 : 1;
 
-                    keyOfWinner = arrPlayers[0].key;
+                    var lastScoreOfWinner = arrPlayers[indexOfWinner].score;
+                    lastScoreOfWinner++;
+
+                    var keyOfWinner = arrPlayers[indexOfWinner].key;
+
+                    return event.data.ref.parent.child('players').child(arrPlayers[indexOfWinner].key).child('score').set(lastScoreOfWinner).then(
+                        () => {
+                            return event.data.ref.parent.child('control').child('status').set(
+                                {id : GameOver,
+                                 parameter1 : keyOfWinner,
+                                 parameter2 : lastScoreOfWinner.toString() }
+                            );
+                        }
+                    );
                 }
-                else if (arrPlayers[1].stone === lastMovedStone.stone) {
-
-                    keyOfWinner = arrPlayers[1].key;
-                }
-
-                return event.data.ref.parent.child('control').child('status').set(
-                    {id : GameOver,
-                     parameter1 : keyOfWinner,
-                     parameter2 : ""}
-                );
-            });
+            );
         }
     }
 );
+
+
+
+
 
 /*
  *   helper functions
