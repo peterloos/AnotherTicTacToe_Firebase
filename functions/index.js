@@ -1,5 +1,11 @@
 'use strict';
 
+// ========================================================================================
+
+/*
+ *   common constant data
+ */
+
 // firebase utils
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
@@ -38,7 +44,12 @@ const GameOver = "GameOver";
 const GameCommandClear = "clear";
 const GameCommandStart = "start";
 
-// trigger functions
+// ========================================================================================
+
+/*
+ *   trigger functions
+ */
+
 exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
     (event) => {
@@ -49,11 +60,11 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
         const command = event.data.val();
 
-        console.log('triggerCommand', '=======> [' + command + ']');
+        console.log('Command => [' + command + ']');
 
         if (command === "") {
 
-            console.log('triggerCommand', ' --> command has been clear by the cloud server');
+            console.log('=> command has been cleared');
             return null;
         }
 
@@ -64,44 +75,48 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
                 var arrPlayers = snapshotToArray (snapshot);
                 if (arrPlayers.length !== 2) {
 
-                    console.log('triggerCommand', 'Array hat a unexpected length ' + arrPlayers.length);
+                    console.log('Room of players not complete: ' + arrPlayers.length);
                     return null;
                 }
 
-                // decide, which player begins - comparing time stamps
+                // decide, which player begins - either comparing scores or time stamps
                 var index = 0;
-                if (arrPlayers[1].timestamp <= arrPlayers[0].timestamp) {
+                if (arrPlayers[0].score === arrPlayers[1].score) {
+
+                    // scores are equal, use timestamp: 'first come, first serve'
+                    if (arrPlayers[1].timestamp <= arrPlayers[0].timestamp) {
+                        index = 1;
+                    }
+                }
+                else if (arrPlayers[0].score < arrPlayers[1].score) {
+
+                    index = 0;
+
+                } else {
+
                     index = 1;
                 }
 
                 // kick-off begin of game
-                console.log('triggerCommand', 'kick-off begin of game');
+                console.log('Kick-off begin of game');
                 var key = arrPlayers[index].key;
                 return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActive, parameter1 : key, parameter2 : ''});
 
             }).catch ((reason) => {
 
-                console.log('triggerCommand', 'Dont  know what to do ??????????????????? ');
+                console.log('Internal Error');
             });
-
         }
-
         else if (command === GameCommandClear) {
 
-            // console.log('triggerCommand', 'board should be cleared now ............................' );
-            // return event.data.ref.parent.parent.child('board').set(EmtpyBoard);
+            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then (() => {
 
-            console.log('triggerCommand', 'in command clear (1a)' );
-
-            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then ( () => {
-
-                console.log('triggerCommand', 'in command clear (1b)');
                 return event.data.ref.set ("");
             });
         }
         else {
 
-            console.log('triggerCommand', 'Found an REALLY unknown command ---------> ' + command );
+            console.log('Internal Error: Unknown command => ' + command);
             return null;
         }
     }
@@ -111,29 +126,24 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
     (event) => {
 
-        const previousBoard = event.data.previous;
-        var prevArray = boardToArray(previousBoard.val());
+        const previousBoard = event.data.previous.val();
+        var prevArray = boardToArray(previousBoard);
 
         const currentBoard = event.data.current.val();
         var currArray = boardToArray(currentBoard);
 
         var lastMovedStone = searchLastMove (prevArray, currArray);
-
-        // *************** begin
-        console.log('triggerBoard', '!!!!!!!!!! lastMovedStone.stone => '  + lastMovedStone.stone );
-        // *************** end
-
         if (lastMovedStone.stone === GameStoneEmpty) {
 
-            console.log('triggerBoard', 'ignorig EMPTY stone ...');
-            return Promise.resolve(1);
+            console.log('Ignorig Empty stone ...');
+            return null;
         }
 
         // set stone
         var result = checkForEndOfGame(currArray, lastMovedStone.stone);
         if (! result.isGameOver) {
 
-            console.log('triggerBoard', 'game is NOT over');
+            console.log('Game *not* over');
 
             // need list of players to change state of game accordingly
             return admin.database().ref('/players').once('value').then ((snapshot) => {
@@ -162,7 +172,7 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
         }
         else {
 
-            console.log('triggerBoard', 'GAME IS OVER');
+            console.log('Game *over*');
 
             return admin.database().ref('/players').once('value').then (
 
@@ -191,6 +201,8 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
     }
 );
 
+
+// ========================================================================================
 
 /*
  *   helper functions
@@ -317,17 +329,20 @@ function dumpBoard(board, title) {
 
     console.log('dumpBoard', title);
 
-    console.log('readTicTacToeBoard', 'elem11 ' + board.row1.col1.state);
-    console.log('readTicTacToeBoard', 'elem12 ' + board.row1.col2.state);
-    console.log('readTicTacToeBoard', 'elem13 ' + board.row1.col3.state);
+    console.log('dumpBoard', 'elem11 = ' + board.row1.col1.state);
+    console.log('dumpBoard', 'elem12 = ' + board.row1.col2.state);
+    console.log('dumpBoard', 'elem13 = ' + board.row1.col3.state);
 
-    console.log('readTicTacToeBoard', 'elem21 ' + board.row2.col1.state);
-    console.log('readTicTacToeBoard', 'elem21 ' + board.row2.col2.state);
-    console.log('readTicTacToeBoard', 'elem21 ' + board.row2.col3.state);
+    console.log('dumpBoard', 'elem21 = ' + board.row2.col1.state);
+    console.log('dumpBoard', 'elem21 = ' + board.row2.col2.state);
+    console.log('dumpBoard', 'elem21 = ' + board.row2.col3.state);
 
-    console.log('readTicTacToeBoard', 'elem31 ' + board.row3.col1.state);
-    console.log('readTicTacToeBoard', 'elem31 ' + board.row3.col2.state);
-    console.log('readTicTacToeBoard', 'elem31 ' + board.row3.col3.state);
+    console.log('dumpBoard', 'elem31 = ' + board.row3.col1.state);
+    console.log('dumpBoard', 'elem31 = ' + board.row3.col2.state);
+    console.log('dumpBoard', 'elem31 = ' + board.row3.col3.state);
 
     return;
 }
+
+// ========================================================================================
+
