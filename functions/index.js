@@ -41,6 +41,7 @@ const GameActive = "GameActive";
 const GameOver = "GameOver";
 
 // game commands
+const GameCommandIdle = "idle";
 const GameCommandClear = "clear";
 const GameCommandStart = "start";
 
@@ -62,12 +63,11 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
         console.log('Command => [' + command + ']');
 
-        if (command === "") {
+        if (command === GameCommandIdle) {
 
-            console.log('=> command has been cleared');
+            console.log('=> Command has been cleared');
             return null;
         }
-
         else if (command === GameCommandStart) {
 
             return admin.database().ref('/players').once('value').then ((snapshot) => {
@@ -100,7 +100,11 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
                 // kick-off begin of game
                 console.log('Kick-off begin of game');
                 var key = arrPlayers[index].key;
-                return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActive, parameter1 : key, parameter2 : ''});
+
+                return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActive, parameter1 : key, parameter2 : ''}).then(
+                    () => {
+                        return event.data.ref.set (GameCommandIdle);
+                    });
 
             }).catch ((reason) => {
 
@@ -111,7 +115,7 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
             return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then (() => {
 
-                return event.data.ref.set ("");
+                return event.data.ref.set (GameCommandIdle);
             });
         }
         else {
@@ -186,15 +190,29 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
                     var keyOfWinner = arrPlayers[indexOfWinner].key;
 
+//                    return event.data.ref.parent.child('players').child(arrPlayers[indexOfWinner].key).child('score').set(lastScoreOfWinner).then(
+//                        () => {
+//                            return event.data.ref.parent.child('control').child('status').set(
+//                                {id : GameOver,
+//                                 parameter1 : keyOfWinner,
+//                                 parameter2 : lastScoreOfWinner.toString() }
+//                            );
+//                        }
+//                    );
+
                     return event.data.ref.parent.child('players').child(arrPlayers[indexOfWinner].key).child('score').set(lastScoreOfWinner).then(
                         () => {
+
                             return event.data.ref.parent.child('control').child('status').set(
                                 {id : GameOver,
                                  parameter1 : keyOfWinner,
                                  parameter2 : lastScoreOfWinner.toString() }
                             );
+
                         }
                     );
+
+
                 }
             );
         }
