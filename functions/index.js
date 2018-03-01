@@ -211,8 +211,6 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
                         }
                     );
-
-
                 }
             );
         }
