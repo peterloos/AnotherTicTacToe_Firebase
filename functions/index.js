@@ -130,6 +130,10 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
     (event) => {
 
+        var keyOfNextPlayer;
+        var keyOfWinner;
+        var lastScoreOfWinner;
+
         const previousBoard = event.data.previous.val();
         var prevArray = boardToArray(previousBoard);
 
@@ -148,12 +152,10 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
         if (! result.isGameOver) {
 
             console.log('Game *not* over');
-
-            // need list of players to change state of game accordingly
             return admin.database().ref('/players').once('value').then ((snapshot) => {
 
                 var arrPlayers = snapshotToArray (snapshot);
-                var keyOfNextPlayer;
+
                 var stoneOfNextPlayer;
 
                 if (arrPlayers[0].stone === lastMovedStone.stone) {
@@ -167,56 +169,43 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
                     stoneOfNextPlayer = arrPlayers[0].stone;
                 }
 
-                return event.data.ref.parent.child('control').child('status').set(
-                    {id : GameActive,
-                     parameter1 : keyOfNextPlayer,
-                     parameter2 : stoneOfNextPlayer}
-                );
-            });
+                return event.data.ref.parent
+                    .child('control')
+                    .child('status')
+                    .set({id : GameActive, parameter1 : keyOfNextPlayer, parameter2 : stoneOfNextPlayer});
+
+            }).then (() => console.log('Player with id ' + keyOfNextPlayer + ' plays next'));
         }
         else {
 
             console.log('Game *over*');
+            return admin.database().ref('/players').once('value').then ((snapshot) => {
 
-            return admin.database().ref('/players').once('value').then (
+                var arrPlayers = snapshotToArray (snapshot);
+                var indexOfWinner = (arrPlayers[0].stone === lastMovedStone.stone) ? 0 : 1;
 
-                (snapshot) => {
+                lastScoreOfWinner = arrPlayers[indexOfWinner].score;
+                lastScoreOfWinner++;
 
-                    var arrPlayers = snapshotToArray (snapshot);
-                    var indexOfWinner = (arrPlayers[0].stone === lastMovedStone.stone) ? 0 : 1;
+                keyOfWinner = arrPlayers[indexOfWinner].key;
 
-                    var lastScoreOfWinner = arrPlayers[indexOfWinner].score;
-                    lastScoreOfWinner++;
+                return event.data.ref.parent
+                    .child('players')
+                    .child(arrPlayers[indexOfWinner].key)
+                    .child('score')
+                    .set(lastScoreOfWinner);
 
-                    var keyOfWinner = arrPlayers[indexOfWinner].key;
+            }).then (() => {
 
-//                    return event.data.ref.parent.child('players').child(arrPlayers[indexOfWinner].key).child('score').set(lastScoreOfWinner).then(
-//                        () => {
-//                            return event.data.ref.parent.child('control').child('status').set(
-//                                {id : GameOver,
-//                                 parameter1 : keyOfWinner,
-//                                 parameter2 : lastScoreOfWinner.toString() }
-//                            );
-//                        }
-//                    );
+                return event.data.ref.parent
+                    .child('control')
+                    .child('status')
+                    .set({id : GameOver, parameter1 : keyOfWinner, parameter2 : lastScoreOfWinner.toString()});
 
-                    return event.data.ref.parent.child('players').child(arrPlayers[indexOfWinner].key).child('score').set(lastScoreOfWinner).then(
-                        () => {
-
-                            return event.data.ref.parent.child('control').child('status').set(
-                                {id : GameOver,
-                                 parameter1 : keyOfWinner,
-                                 parameter2 : lastScoreOfWinner.toString() }
-                            );
-
-                        }
-                    );
-                }
-            );
+            }).then (() => console.log('Player with id ' + keyOfWinner + ' has won the game!'));
         }
     }
 );
-
 
 // ========================================================================================
 
