@@ -101,22 +101,31 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
                 console.log('Kick-off begin of game');
                 var key = arrPlayers[index].key;
 
-                return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActive, parameter1 : key, parameter2 : ''}).then(
-                    () => {
-                        return event.data.ref.set (GameCommandIdle);
-                    });
+                return event.data.ref
+                    .parent
+                    .parent
+                    .child('control')
+                    .child('status')
+                    .set({ id : GameActive, parameter1 : key, parameter2 : ''});
 
-            }).catch ((reason) => {
+            }).then(() => {
 
-                console.log('Internal Error');
-            });
+                return event.data.ref.set (GameCommandIdle);
+
+            }).then(() => console.log('control/command/ trigger done.'));
+
         }
         else if (command === GameCommandClear) {
 
-            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then (() => {
+            return event.data.ref
+                .parent
+                .parent
+                .child('board')
+                .set(EmtpyBoard).then (() => {
 
                 return event.data.ref.set (GameCommandIdle);
-            });
+
+            }).then(() => console.log('control/command/ trigger done.'));
         }
         else {
 
@@ -126,7 +135,86 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
     }
 );
 
-exports.triggerBoard = functions.database.ref ('board').onUpdate(
+
+
+
+//exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
+//
+//    (event) => {
+//
+//        if (!event.data.exists()) {
+//            return null;
+//        }
+//
+//        const command = event.data.val();
+//
+//        console.log('Command => [' + command + ']');
+//
+//        if (command === GameCommandIdle) {
+//
+//            console.log('=> Command has been cleared');
+//            return null;
+//        }
+//        else if (command === GameCommandStart) {
+//
+//            return admin.database().ref('/players').once('value').then ((snapshot) => {
+//
+//                var arrPlayers = snapshotToArray (snapshot);
+//                if (arrPlayers.length !== 2) {
+//
+//                    console.log('Room of players not complete: ' + arrPlayers.length);
+//                    return null;
+//                }
+//
+//                // decide, which player begins - either comparing scores or time stamps
+//                var index = 0;
+//                if (arrPlayers[0].score === arrPlayers[1].score) {
+//
+//                    // scores are equal, use timestamp: 'first come, first serve'
+//                    if (arrPlayers[1].timestamp <= arrPlayers[0].timestamp) {
+//                        index = 1;
+//                    }
+//                }
+//                else if (arrPlayers[0].score < arrPlayers[1].score) {
+//
+//                    index = 0;
+//
+//                } else {
+//
+//                    index = 1;
+//                }
+//
+//                // kick-off begin of game
+//                console.log('Kick-off begin of game');
+//                var key = arrPlayers[index].key;
+//
+//                return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActive, parameter1 : key, parameter2 : ''}).then(
+//                    () => {
+//                        return event.data.ref.set (GameCommandIdle);
+//                    });
+//
+//            }).catch ((reason) => {
+//
+//                console.log('Internal Error');
+//            });
+//        }
+//        else if (command === GameCommandClear) {
+//
+//            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then (() => {
+//
+//                return event.data.ref.set (GameCommandIdle);
+//            });
+//        }
+//        else {
+//
+//            console.log('Internal Error: Unknown command => ' + command);
+//            return null;
+//        }
+//    }
+//);
+
+
+exports.triggerBoard = functions.database.ref ('/board').onUpdate(
 
     (event) => {
 
@@ -149,6 +237,7 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
         // set stone
         var result = checkForEndOfGame(currArray, lastMovedStone.stone);
+
         if (! result.isGameOver) {
 
             console.log('Game *not* over');
@@ -169,16 +258,18 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
                     stoneOfNextPlayer = arrPlayers[0].stone;
                 }
 
-                return event.data.ref.parent
+                return event.data.ref
+                    .parent
                     .child('control')
                     .child('status')
                     .set({id : GameActive, parameter1 : keyOfNextPlayer, parameter2 : stoneOfNextPlayer});
 
             }).then (() => console.log('Player with id ' + keyOfNextPlayer + ' plays next'));
         }
-        else {
+        else if (! result.isADraw) {
 
             console.log('Game *over*');
+
             return admin.database().ref('/players').once('value').then ((snapshot) => {
 
                 var arrPlayers = snapshotToArray (snapshot);
@@ -189,7 +280,8 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
                 keyOfWinner = arrPlayers[indexOfWinner].key;
 
-                return event.data.ref.parent
+                return event.data.ref
+                    .parent
                     .child('players')
                     .child(arrPlayers[indexOfWinner].key)
                     .child('score')
@@ -197,12 +289,24 @@ exports.triggerBoard = functions.database.ref ('board').onUpdate(
 
             }).then (() => {
 
-                return event.data.ref.parent
+                return event.data.ref
+                    .parent
                     .child('control')
                     .child('status')
                     .set({id : GameOver, parameter1 : keyOfWinner, parameter2 : lastScoreOfWinner.toString()});
 
             }).then (() => console.log('Player with id ' + keyOfWinner + ' has won the game!'));
+        }
+        else {
+
+            console.log("Game *over* -- it's a draw !!!");
+
+            return event.data.ref
+                .parent
+                .child('control')
+                .child('status')
+                .set({id : GameOver, parameter1 : '', parameter2 : '' })
+                .then (() => console.log("Game *over* -- it's a draw !!!"));
         }
     }
 );
