@@ -65,7 +65,7 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
         if (command === GameCommandIdle) {
 
-            console.log('=> Command has been cleared');
+            console.log('Command has been cleared');
             return null;
         }
         else if (command === GameCommandStart) {
@@ -112,7 +112,7 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
                 return event.data.ref.set (GameCommandIdle);
 
-            }).then(() => console.log('control/command/ trigger done.'));
+            }).then(() => console.log('Trigger /control/command/ done!'));
 
         }
         else if (command === GameCommandClear) {
@@ -125,7 +125,7 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
 
                 return event.data.ref.set (GameCommandIdle);
 
-            }).then(() => console.log('control/command/ trigger done.'));
+            }).then(() => console.log('Trigger /control/command/ done!'));
         }
         else {
 
@@ -134,85 +134,6 @@ exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
         }
     }
 );
-
-
-
-
-//exports.triggerCommand = functions.database.ref ('/control/command').onUpdate (
-//
-//    (event) => {
-//
-//        if (!event.data.exists()) {
-//            return null;
-//        }
-//
-//        const command = event.data.val();
-//
-//        console.log('Command => [' + command + ']');
-//
-//        if (command === GameCommandIdle) {
-//
-//            console.log('=> Command has been cleared');
-//            return null;
-//        }
-//        else if (command === GameCommandStart) {
-//
-//            return admin.database().ref('/players').once('value').then ((snapshot) => {
-//
-//                var arrPlayers = snapshotToArray (snapshot);
-//                if (arrPlayers.length !== 2) {
-//
-//                    console.log('Room of players not complete: ' + arrPlayers.length);
-//                    return null;
-//                }
-//
-//                // decide, which player begins - either comparing scores or time stamps
-//                var index = 0;
-//                if (arrPlayers[0].score === arrPlayers[1].score) {
-//
-//                    // scores are equal, use timestamp: 'first come, first serve'
-//                    if (arrPlayers[1].timestamp <= arrPlayers[0].timestamp) {
-//                        index = 1;
-//                    }
-//                }
-//                else if (arrPlayers[0].score < arrPlayers[1].score) {
-//
-//                    index = 0;
-//
-//                } else {
-//
-//                    index = 1;
-//                }
-//
-//                // kick-off begin of game
-//                console.log('Kick-off begin of game');
-//                var key = arrPlayers[index].key;
-//
-//                return event.data.ref.parent.parent.child('control').child('status').set({ id : GameActive, parameter1 : key, parameter2 : ''}).then(
-//                    () => {
-//                        return event.data.ref.set (GameCommandIdle);
-//                    });
-//
-//            }).catch ((reason) => {
-//
-//                console.log('Internal Error');
-//            });
-//        }
-//        else if (command === GameCommandClear) {
-//
-//            return event.data.ref.parent.parent.child('board').set(EmtpyBoard).then (() => {
-//
-//                return event.data.ref.set (GameCommandIdle);
-//            });
-//        }
-//        else {
-//
-//            console.log('Internal Error: Unknown command => ' + command);
-//            return null;
-//        }
-//    }
-//);
-
 
 exports.triggerBoard = functions.database.ref ('/board').onUpdate(
 
@@ -258,11 +179,17 @@ exports.triggerBoard = functions.database.ref ('/board').onUpdate(
                     stoneOfNextPlayer = arrPlayers[0].stone;
                 }
 
+                var status = {
+                    id : GameActive,
+                    parameter1 : keyOfNextPlayer,
+                    parameter2 : stoneOfNextPlayer
+                };
+
                 return event.data.ref
                     .parent
                     .child('control')
                     .child('status')
-                    .set({id : GameActive, parameter1 : keyOfNextPlayer, parameter2 : stoneOfNextPlayer});
+                    .set(status);
 
             }).then (() => console.log('Player with id ' + keyOfNextPlayer + ' plays next'));
         }
@@ -289,11 +216,17 @@ exports.triggerBoard = functions.database.ref ('/board').onUpdate(
 
             }).then (() => {
 
+                var status = {
+                    id : GameOver,
+                    parameter1 : keyOfWinner,
+                    parameter2 : lastScoreOfWinner.toString()
+                };
+
                 return event.data.ref
                     .parent
                     .child('control')
                     .child('status')
-                    .set({id : GameOver, parameter1 : keyOfWinner, parameter2 : lastScoreOfWinner.toString()});
+                    .set(status);
 
             }).then (() => console.log('Player with id ' + keyOfWinner + ' has won the game!'));
         }
@@ -352,7 +285,11 @@ function boardToArray(board) {
     const elem32 = board.row3.col2.state;
     const elem33 = board.row3.col3.state;
 
-    var boardAsArray = [ [elem11, elem12, elem13], [elem21, elem22, elem23], [elem31, elem32, elem33] ];
+    var boardAsArray = [
+        [elem11, elem12, elem13],
+        [elem21, elem22, elem23],
+        [elem31, elem32, elem33]
+    ];
 
     return boardAsArray;
 }
@@ -454,4 +391,7 @@ function dumpBoard(board, title) {
 }
 
 // ========================================================================================
+// end-of-file
+// ========================================================================================
+
 
