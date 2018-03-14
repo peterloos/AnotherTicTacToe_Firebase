@@ -14,7 +14,7 @@ admin.initializeApp (functions.config().firebase);
 // game board stones
 const GameStoneX = "X";
 const GameStoneO = "O";
-const GameStoneEmpty = "Empty";
+// const GameStoneEmpty = "Empty";
 
 // empty board - needed for initialization
 const EmtpyBoard = {
