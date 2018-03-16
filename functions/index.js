@@ -285,13 +285,11 @@ function boardToArray(board) {
     const elem32 = board.row3.col2.state;
     const elem33 = board.row3.col3.state;
 
-    var boardAsArray = [
+    return [
         [elem11, elem12, elem13],
         [elem21, elem22, elem23],
         [elem31, elem32, elem33]
     ];
-
-    return boardAsArray;
 }
 
 function searchLastMove(prevBoard, currBoard) {
